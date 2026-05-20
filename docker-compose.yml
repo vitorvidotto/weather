@@ -1,0 +1,23 @@
+services:
+  web:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      WEATHER_API_KEY: ${WEATHER_API_KEY}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY_BASE: 184a6d1ab1348d59d3e44ca4b976243ad893af4f945af426c46561553dc726560df774f6458be77531fa5794670e09d3e1549fe972bb751e54e43a734124a964
+    depends_on:
+      - redis
+    env_file:
+      - .env
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
