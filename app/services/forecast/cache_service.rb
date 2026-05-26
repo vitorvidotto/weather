@@ -2,8 +2,9 @@ module Forecast
   class CacheService
     TTL = 30.minutes
 
-    def initialize(weather_service: WeatherService.new)
+    def initialize(weather_service: WeatherService.new, logger: Rails.logger)
       @weather_service = weather_service
+      @logger = logger
     end
 
     def fetch(zip_code)
@@ -28,14 +29,15 @@ module Forecast
 
     def read_from_cache(key)
       Rails.cache.read(key)
-    rescue StandardError
+    rescue StandardError => e
+      @logger.error("[CacheService] Failed to read from cache: #{e.message}")
       nil
     end
 
     def write_to_cache(key, payload)
       Rails.cache.write(key, payload, expires_in: TTL)
-    rescue StandardError
-      # Redis write failures are non-fatal
+    rescue StandardError => e
+      @logger.error("[CacheService] Failed to write to cache: #{e.message}")
     end
   end
 end

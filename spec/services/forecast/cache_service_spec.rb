@@ -1,9 +1,10 @@
 require 'rails_helper'
 
 RSpec.describe Forecast::CacheService do
-  subject(:service) { described_class.new(weather_service: weather_service) }
+  subject(:service) { described_class.new(weather_service: weather_service, logger: logger) }
 
   let(:weather_service) { instance_double(Forecast::WeatherService) }
+  let(:logger) { instance_double(ActiveSupport::Logger, error: nil) }
   let(:result) { instance_double(Forecast::Parsers::WeatherApiResponse::WeatherResult) }
 
   before { Rails.cache.clear }
@@ -60,15 +61,39 @@ RSpec.describe Forecast::CacheService do
       end
     end
 
-    context 'when Redis is unavailable' do
+    context 'when Redis is unavailable on read' do
       before do
-        allow(Rails.cache).to receive(:read).and_raise(Redis::CannotConnectError)
+        allow(Rails.cache).to receive(:read).and_raise(Redis::CannotConnectError, 'connection refused')
+        allow(Rails.cache).to receive(:write)
         allow(weather_service).to receive(:fetch).with('90210').and_return(result)
       end
 
       it 'falls through to the weather service' do
         service.fetch('90210')
         expect(weather_service).to have_received(:fetch).with('90210')
+      end
+
+      it 'logs the error' do
+        service.fetch('90210')
+        expect(logger).to have_received(:error).with(/Failed to read from cache.*connection refused/i)
+      end
+    end
+
+    context 'when Redis is unavailable on write' do
+      before do
+        allow(Rails.cache).to receive(:read).and_return(nil)
+        allow(Rails.cache).to receive(:write).and_raise(Redis::CannotConnectError, 'connection refused')
+        allow(weather_service).to receive(:fetch).with('90210').and_return(result)
+      end
+
+      it 'still returns the result' do
+        payload = service.fetch('90210')
+        expect(payload[:result]).to eq(result)
+      end
+
+      it 'logs the error' do
+        service.fetch('90210')
+        expect(logger).to have_received(:error).with(/Failed to write to cache.*connection refused/i)
       end
     end
   end
